@@ -3,7 +3,10 @@
 <html>
 <head>
 
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+
 <title>AR Viewer</title>
 
 <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
@@ -106,49 +109,69 @@ cursor:pointer;
 <video id="cam" autoplay muted playsinline webkit-playsinline></video>
 
 <div class="arObject" id="object">
+
 <img src="{{ project.file_url }}">
+
 <div class="shadow"></div>
+
 </div>
 
 <button class="captureBtn" id="captureBtn">📸 Capture</button>
 
 <script>
 
-/* CAMERA */
+/* CAMERA START */
 
-const cam = document.getElementById("cam");
+const cam = document.getElementById("cam")
 
 document.getElementById("startAR").onclick = async () => {
 
 try{
 
-const stream = await navigator.mediaDevices.getUserMedia({
+let stream
+
+/* Try rear camera first */
+
+try{
+
+stream = await navigator.mediaDevices.getUserMedia({
+video:{facingMode:{ideal:"environment"}},
+audio:false
+})
+
+}catch(e){
+
+/* Fallback if rear camera not supported */
+
+stream = await navigator.mediaDevices.getUserMedia({
 video:true,
 audio:false
-});
-
-cam.srcObject = stream;
-
-await cam.play();
-
-document.getElementById("startAR").style.display="none";
-
-}catch(err){
-
-alert("Camera permission required");
+})
 
 }
 
-};
+cam.srcObject = stream
+
+await cam.play()
+
+document.getElementById("startAR").style.display="none"
+
+}catch(err){
+
+alert("Camera access not supported on this device")
+
+}
+
+}
 
 /* OBJECT STATE */
 
-const object = document.getElementById("object");
+const object = document.getElementById("object")
 
-let x = window.innerWidth/2;
-let y = window.innerHeight/2;
-let scale = 1;
-let rotation = 0;
+let x = window.innerWidth/2
+let y = window.innerHeight/2
+let scale = 1
+let rotation = 0
 
 function update(){
 
@@ -156,94 +179,94 @@ object.style.transform =
 `translate(${x}px,${y}px)
  translate(-50%,-50%)
  scale(${scale})
- rotate(${rotation}deg)`;
+ rotate(${rotation}deg)`
 
 }
 
-update();
+update()
 
-/* DRAG (MOUSE) */
+/* DRAG */
 
-let dragging = false;
-let startX = 0;
-let startY = 0;
+let dragging = false
+let startX = 0
+let startY = 0
 
 object.addEventListener("mousedown",e=>{
 
-dragging = true;
+dragging = true
 
-startX = e.clientX - x;
-startY = e.clientY - y;
+startX = e.clientX - x
+startY = e.clientY - y
 
-});
+})
 
 document.addEventListener("mousemove",e=>{
 
-if(!dragging) return;
+if(!dragging) return
 
-x = e.clientX - startX;
-y = e.clientY - startY;
+x = e.clientX - startX
+y = e.clientY - startY
 
-update();
+update()
 
-});
+})
 
 document.addEventListener("mouseup",()=>{
 
-dragging = false;
+dragging = false
 
-});
+})
 
-/* DRAG (TOUCH) */
+/* TOUCH DRAG */
 
 object.addEventListener("touchstart",e=>{
 
 if(e.touches.length === 1){
 
-dragging = true;
+dragging = true
 
-startX = e.touches[0].clientX - x;
-startY = e.touches[0].clientY - y;
+startX = e.touches[0].clientX - x
+startY = e.touches[0].clientY - y
 
 }
 
-});
+})
 
 object.addEventListener("touchmove",e=>{
 
 if(dragging && e.touches.length === 1){
 
-x = e.touches[0].clientX - startX;
-y = e.touches[0].clientY - startY;
+x = e.touches[0].clientX - startX
+y = e.touches[0].clientY - startY
 
-update();
+update()
 
 }
 
-});
+})
 
 object.addEventListener("touchend",()=>{
 
-dragging = false;
+dragging = false
 
-});
+})
 
 /* PINCH ZOOM + ROTATE */
 
-let startDistance = 0;
-let startScale = 1;
-let startAngle = 0;
-let startRotation = 0;
+let startDistance = 0
+let startScale = 1
+let startAngle = 0
+let startRotation = 0
 
 function getDistance(a,b){
 
-return Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);
+return Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY)
 
 }
 
 function getAngle(a,b){
 
-return Math.atan2(b.clientY-a.clientY,b.clientX-a.clientX)*180/Math.PI;
+return Math.atan2(b.clientY-a.clientY,b.clientX-a.clientX)*180/Math.PI
 
 }
 
@@ -251,83 +274,80 @@ object.addEventListener("touchstart",e=>{
 
 if(e.touches.length === 2){
 
-startDistance = getDistance(e.touches[0],e.touches[1]);
-
-startScale = scale;
-
-startAngle = getAngle(e.touches[0],e.touches[1]);
-
-startRotation = rotation;
+startDistance = getDistance(e.touches[0],e.touches[1])
+startScale = scale
+startAngle = getAngle(e.touches[0],e.touches[1])
+startRotation = rotation
 
 }
 
-});
+})
 
 object.addEventListener("touchmove",e=>{
 
 if(e.touches.length === 2){
 
-let newDistance = getDistance(e.touches[0],e.touches[1]);
+let newDistance = getDistance(e.touches[0],e.touches[1])
 
-scale = startScale * (newDistance/startDistance);
+scale = startScale * (newDistance/startDistance)
 
-let newAngle = getAngle(e.touches[0],e.touches[1]);
+let newAngle = getAngle(e.touches[0],e.touches[1])
 
-rotation = startRotation + (newAngle-startAngle);
+rotation = startRotation + (newAngle-startAngle)
 
-scale = Math.max(.3,Math.min(scale,4));
+scale = Math.max(.3,Math.min(scale,4))
 
-update();
+update()
 
 }
 
-});
+})
 
-/* MOUSE ZOOM */
+/* DESKTOP ZOOM */
 
 object.addEventListener("wheel",e=>{
 
-e.preventDefault();
+e.preventDefault()
 
-scale += e.deltaY * -0.001;
+scale += e.deltaY * -0.001
 
-scale = Math.max(.3,Math.min(scale,4));
+scale = Math.max(.3,Math.min(scale,4))
 
-update();
+update()
 
-});
+})
 
-/* CAPTURE */
+/* CAPTURE SCREENSHOT */
 
 document.getElementById("captureBtn").addEventListener("click",async()=>{
 
-const canvas=document.createElement("canvas");
+const canvas=document.createElement("canvas")
 
-canvas.width=window.innerWidth;
-canvas.height=window.innerHeight;
+canvas.width=window.innerWidth
+canvas.height=window.innerHeight
 
-const ctx=canvas.getContext("2d");
+const ctx=canvas.getContext("2d")
 
-ctx.drawImage(cam,0,0,canvas.width,canvas.height);
+ctx.drawImage(cam,0,0,canvas.width,canvas.height)
 
 const arCanvas=await html2canvas(object,{
 backgroundColor:null,
 useCORS:true
-});
+})
 
-const rect=object.getBoundingClientRect();
+const rect=object.getBoundingClientRect()
 
-ctx.drawImage(arCanvas,rect.left,rect.top,rect.width,rect.height);
+ctx.drawImage(arCanvas,rect.left,rect.top,rect.width,rect.height)
 
-const link=document.createElement("a");
+const link=document.createElement("a")
 
-link.download="AR_capture.png";
+link.download="AR_capture.png"
 
-link.href=canvas.toDataURL();
+link.href=canvas.toDataURL()
 
-link.click();
+link.click()
 
-});
+})
 
 </script>
 
