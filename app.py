@@ -1,4 +1,3 @@
-
 import os
 import uuid
 from flask import Flask, render_template, request, redirect, session, abort, send_from_directory
@@ -25,8 +24,10 @@ db_url = os.environ.get("DATABASE_URL")
 if db_url and db_url.startswith("postgres://"):
     db_url = db_url.replace("postgres://", "postgresql://", 1)
 
+# fallback if DATABASE_URL missing
 if not db_url:
-    raise RuntimeError("DATABASE_URL not set")
+    print("WARNING: DATABASE_URL not set, using SQLite")
+    db_url = "sqlite:///local.db"
 
 app.config["SQLALCHEMY_DATABASE_URI"] = db_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
@@ -35,13 +36,14 @@ db = SQLAlchemy(app)
 
 # ---------- UPLOAD CONFIG ----------
 
-UPLOAD_FOLDER = "/tmp/uploads"
+UPLOAD_FOLDER = os.path.join("/tmp", "uploads")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "glb"}
 
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024
+
 
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -278,4 +280,3 @@ if __name__ == "__main__":
         port=port,
         debug=True
     )
-
