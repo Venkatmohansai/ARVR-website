@@ -1,4 +1,3 @@
-```html
 <!DOCTYPE html>
 <html>
 <head>
@@ -6,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#000000">
 
 <title>AR Viewer</title>
 
@@ -99,14 +99,42 @@ z-index:2000;
 cursor:pointer;
 }
 
+/* OPEN IN BROWSER MESSAGE */
+
+.browserBlock{
+position:fixed;
+top:0;
+left:0;
+width:100%;
+height:100%;
+background:black;
+color:white;
+display:flex;
+align-items:center;
+justify-content:center;
+text-align:center;
+padding:30px;
+z-index:9999;
+font-size:20px;
+}
+
 </style>
 </head>
 
 <body>
 
+<div id="browserMessage" class="browserBlock" style="display:none;">
+<div>
+<h2>Open in Browser</h2>
+<p>This AR experience requires camera access.</p>
+<p>Please open this link in <b>Chrome, Safari, or Edge</b>.</p>
+<p>Tap menu ⋮ → <b>Open in Browser</b></p>
+</div>
+</div>
+
 <button class="startBtn" id="startAR">Start AR</button>
 
-<video id="cam" autoplay muted playsinline webkit-playsinline></video>
+<video id="cam" autoplay muted playsinline></video>
 
 <div class="arObject" id="object">
 
@@ -120,6 +148,16 @@ cursor:pointer;
 
 <script>
 
+/* DETECT IN-APP BROWSER */
+
+const ua = navigator.userAgent || navigator.vendor || window.opera;
+
+if (ua.includes("FBAN") || ua.includes("FBAV") || ua.includes("Instagram") || ua.includes("WhatsApp")) {
+
+document.getElementById("browserMessage").style.display="flex";
+
+}
+
 /* CAMERA START */
 
 const cam = document.getElementById("cam")
@@ -128,27 +166,14 @@ document.getElementById("startAR").onclick = async () => {
 
 try{
 
-let stream
-
-/* Try rear camera first */
-
-try{
-
-stream = await navigator.mediaDevices.getUserMedia({
-video:{facingMode:{ideal:"environment"}},
+const constraints={
+video:{
+facingMode:{ideal:"environment"}
+},
 audio:false
-})
-
-}catch(e){
-
-/* Fallback if rear camera not supported */
-
-stream = await navigator.mediaDevices.getUserMedia({
-video:true,
-audio:false
-})
-
 }
+
+const stream = await navigator.mediaDevices.getUserMedia(constraints)
 
 cam.srcObject = stream
 
@@ -187,25 +212,25 @@ update()
 
 /* DRAG */
 
-let dragging = false
-let startX = 0
-let startY = 0
+let dragging=false
+let startX=0
+let startY=0
 
 object.addEventListener("mousedown",e=>{
 
-dragging = true
+dragging=true
 
-startX = e.clientX - x
-startY = e.clientY - y
+startX=e.clientX-x
+startY=e.clientY-y
 
 })
 
 document.addEventListener("mousemove",e=>{
 
-if(!dragging) return
+if(!dragging)return
 
-x = e.clientX - startX
-y = e.clientY - startY
+x=e.clientX-startX
+y=e.clientY-startY
 
 update()
 
@@ -213,7 +238,7 @@ update()
 
 document.addEventListener("mouseup",()=>{
 
-dragging = false
+dragging=false
 
 })
 
@@ -221,12 +246,12 @@ dragging = false
 
 object.addEventListener("touchstart",e=>{
 
-if(e.touches.length === 1){
+if(e.touches.length===1){
 
-dragging = true
+dragging=true
 
-startX = e.touches[0].clientX - x
-startY = e.touches[0].clientY - y
+startX=e.touches[0].clientX-x
+startY=e.touches[0].clientY-y
 
 }
 
@@ -234,10 +259,10 @@ startY = e.touches[0].clientY - y
 
 object.addEventListener("touchmove",e=>{
 
-if(dragging && e.touches.length === 1){
+if(dragging && e.touches.length===1){
 
-x = e.touches[0].clientX - startX
-y = e.touches[0].clientY - startY
+x=e.touches[0].clientX-startX
+y=e.touches[0].clientY-startY
 
 update()
 
@@ -247,16 +272,14 @@ update()
 
 object.addEventListener("touchend",()=>{
 
-dragging = false
+dragging=false
 
 })
 
-/* PINCH ZOOM + ROTATE */
+/* PINCH ZOOM */
 
-let startDistance = 0
-let startScale = 1
-let startAngle = 0
-let startRotation = 0
+let startDistance=0
+let startScale=1
 
 function getDistance(a,b){
 
@@ -264,20 +287,12 @@ return Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY)
 
 }
 
-function getAngle(a,b){
-
-return Math.atan2(b.clientY-a.clientY,b.clientX-a.clientX)*180/Math.PI
-
-}
-
 object.addEventListener("touchstart",e=>{
 
-if(e.touches.length === 2){
+if(e.touches.length===2){
 
-startDistance = getDistance(e.touches[0],e.touches[1])
-startScale = scale
-startAngle = getAngle(e.touches[0],e.touches[1])
-startRotation = rotation
+startDistance=getDistance(e.touches[0],e.touches[1])
+startScale=scale
 
 }
 
@@ -285,17 +300,13 @@ startRotation = rotation
 
 object.addEventListener("touchmove",e=>{
 
-if(e.touches.length === 2){
+if(e.touches.length===2){
 
-let newDistance = getDistance(e.touches[0],e.touches[1])
+let newDistance=getDistance(e.touches[0],e.touches[1])
 
-scale = startScale * (newDistance/startDistance)
+scale=startScale*(newDistance/startDistance)
 
-let newAngle = getAngle(e.touches[0],e.touches[1])
-
-rotation = startRotation + (newAngle-startAngle)
-
-scale = Math.max(.3,Math.min(scale,4))
+scale=Math.max(.3,Math.min(scale,4))
 
 update()
 
@@ -309,9 +320,9 @@ object.addEventListener("wheel",e=>{
 
 e.preventDefault()
 
-scale += e.deltaY * -0.001
+scale+=e.deltaY*-0.001
 
-scale = Math.max(.3,Math.min(scale,4))
+scale=Math.max(.3,Math.min(scale,4))
 
 update()
 
@@ -353,4 +364,3 @@ link.click()
 
 </body>
 </html>
-```
