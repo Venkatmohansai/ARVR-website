@@ -1,9 +1,12 @@
 import os
 import uuid
-from flask import Flask, render_template, request, redirect, session, abort, send_from_directory
+from flask import Flask, render_template, request, redirect, session, abort
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
+
+import cloudinary
+import cloudinary.uploader
 
 # ---------- LOAD ENV ----------
 load_dotenv()
@@ -11,7 +14,7 @@ load_dotenv()
 app = Flask(__name__)
 
 # ---------- SECRET KEY ----------
-app.secret_key = os.environ.get("SECRET_KEY", "dev_secret_key")
+app.secret_key = os.environ.get("SECRET_KEY")
 
 # ---------- SESSION CONFIG ----------
 app.config["SESSION_COOKIE_SECURE"] = False
@@ -24,26 +27,23 @@ db_url = os.environ.get("DATABASE_URL")
 if db_url and db_url.startswith("postgres://"):
     db_url = db_url.replace("postgres://", "postgresql://", 1)
 
-# fallback if DATABASE_URL missing
-if not db_url:
-    print("WARNING: DATABASE_URL not set, using SQLite")
-    db_url = "sqlite:///local.db"
-
 app.config["SQLALCHEMY_DATABASE_URI"] = db_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
 
-# ---------- UPLOAD CONFIG ----------
+# ---------- CLOUDINARY CONFIG ----------
 
-UPLOAD_FOLDER = os.path.join("/tmp", "uploads")
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+cloudinary.config(
+    cloud_name=os.environ.get("CLOUDINARY_CLOUD_NAME"),
+    api_key=os.environ.get("CLOUDINARY_API_KEY"),
+    api_secret=os.environ.get("CLOUDINARY_API_SECRET"),
+    secure=True
+)
+
+# ---------- ALLOWED FILE TYPES ----------
 
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "glb"}
-
-app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
-app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024
-
 
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -63,21 +63,9 @@ class Project(db.Model):
 
 
 # ---------- CREATE TABLES ----------
+
 with app.app_context():
     db.create_all()
-
-
-# ---------- SERVE UPLOADED FILES ----------
-
-@app.route("/uploads/<filename>")
-def uploaded_file(filename):
-
-    filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-
-    if not os.path.exists(filepath):
-        abort(404)
-
-    return send_from_directory(app.config["UPLOAD_FOLDER"], filename)
 
 
 # ---------- DASHBOARD ----------
@@ -87,24 +75,7 @@ def dashboard():
 
     projects = Project.query.order_by(Project.id.desc()).all()
 
-    valid_projects = []
-
-    for p in projects:
-
-        if p.file_url.startswith("/uploads/"):
-
-            filename = p.file_url.split("/")[-1]
-
-            path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-
-            if not os.path.exists(path):
-                db.session.delete(p)
-                db.session.commit()
-                continue
-
-        valid_projects.append(p)
-
-    return render_template("dashboard.html", projects=valid_projects)
+    return render_template("dashboard.html", projects=projects)
 
 
 # ---------- IMAGE AR ----------
@@ -157,7 +128,7 @@ def verify_pin():
 
     next_page = request.form.get("next_page") or "/"
 
-    correct_pin = os.environ.get("ADMIN_PIN", "1234")
+    correct_pin = os.environ.get("ADMIN_PIN")
 
     if pin == correct_pin:
 
@@ -173,7 +144,7 @@ def verify_pin():
     )
 
 
-# ---------- SAVE PROJECT ----------
+# ---------- SAVE PROJECT (UPLOAD TO CLOUDINARY) ----------
 
 @app.route("/save", methods=["POST"])
 def save():
@@ -193,13 +164,15 @@ def save():
 
     try:
 
-        filename = str(uuid.uuid4()) + "_" + secure_filename(file.filename)
+        filename = secure_filename(file.filename)
 
-        filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+        upload_result = cloudinary.uploader.upload(
+            file,
+            public_id=str(uuid.uuid4()) + "_" + filename,
+            resource_type="auto"
+        )
 
-        file.save(filepath)
-
-        file_url = f"/uploads/{filename}"
+        file_url = upload_result["secure_url"]
 
         project = Project(
             name=name,
@@ -230,15 +203,6 @@ def delete_project(id):
     project = Project.query.get_or_404(id)
 
     try:
-
-        if project.file_url.startswith("/uploads/"):
-
-            filename = project.file_url.split("/")[-1]
-
-            filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-
-            if os.path.exists(filepath):
-                os.remove(filepath)
 
         db.session.delete(project)
         db.session.commit()
