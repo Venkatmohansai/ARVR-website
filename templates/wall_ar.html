@@ -3,11 +3,9 @@
 <head>
 
 <meta name="viewport"
-content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 
-<title>Wall AR PRO</title>
-
-<script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+<title>Wall AR Multi Panel</title>
 
 <style>
 
@@ -31,13 +29,13 @@ object-fit:cover;
 z-index:1;
 }
 
-/* WALL PATCH */
+/* WALL PANEL */
 
 .wall{
 position:absolute;
-width:260px;
-height:180px;
-border-radius:16px;
+width:220px;
+height:150px;
+border-radius:14px;
 z-index:5;
 cursor:grab;
 }
@@ -46,15 +44,15 @@ cursor:grab;
 
 .deleteBtn{
 position:absolute;
-top:-12px;
-right:-12px;
+top:-10px;
+right:-10px;
 background:red;
 color:white;
-width:26px;
-height:26px;
+width:22px;
+height:22px;
 border-radius:50%;
 text-align:center;
-line-height:26px;
+line-height:22px;
 font-weight:bold;
 cursor:pointer;
 }
@@ -62,46 +60,35 @@ cursor:pointer;
 /* CONTROL PANEL */
 
 #panel{
-
 position:fixed;
 bottom:20px;
 left:50%;
 transform:translateX(-50%);
-
-background:rgba(50,50,50,.9);
-
-padding:18px;
-border-radius:24px;
-
-width:90%;
-max-width:420px;
-
+background:rgba(40,40,40,.9);
+padding:14px;
+border-radius:20px;
+width:300px;
 color:white;
 z-index:10;
-
-}
-
-button{
-
-background:#00c2d1;
-border:none;
-padding:10px 16px;
-border-radius:12px;
-margin:4px;
-color:white;
-cursor:pointer;
-
 }
 
 .color{
-
-width:32px;
-height:32px;
+width:26px;
+height:26px;
+border-radius:6px;
 display:inline-block;
 margin:3px;
-border-radius:6px;
 cursor:pointer;
+}
 
+button{
+background:#00c2d1;
+border:none;
+padding:7px 12px;
+border-radius:10px;
+margin:3px;
+color:white;
+cursor:pointer;
 }
 
 </style>
@@ -114,8 +101,9 @@ cursor:pointer;
 
 <div id="panel">
 
-🎨 Wall AR PRO
-<input type="color" id="colorPicker">
+🎨 Wall AR
+
+<input type="color" id="picker">
 
 <br><br>
 
@@ -123,17 +111,17 @@ cursor:pointer;
 
 Opacity
 <input type="range"
-id="opacitySlider"
-min="0.1"
+id="opacity"
+min="0.2"
 max="1"
-step="0.05"
+step="0.1"
 value="1">
 
-<br><br>
+<br>
 
-<button onclick="addWall()">Add Wall</button>
+<button onclick="addWall()">Add Panel</button>
 
-<input type="file" id="textureInput">
+<input type="file" id="texture">
 
 <button onclick="applyTexture()">Texture</button>
 
@@ -143,29 +131,14 @@ value="1">
 
 <script>
 
-/* STOP PAGE ZOOM */
-
-document.addEventListener("gesturestart",e=>e.preventDefault());
-document.addEventListener("gesturechange",e=>e.preventDefault());
-document.addEventListener("gestureend",e=>e.preventDefault());
-
-document.addEventListener("wheel",e=>{
-
-if(e.ctrlKey) e.preventDefault()
-
-},{passive:false});
-
-
-/* CAMERA */
+/* START CAMERA */
 
 navigator.mediaDevices.getUserMedia({
-
-video:{facingMode:"environment"}
-
+video:{ facingMode:"environment" }
 }).then(stream=>camera.srcObject=stream);
 
 
-/* GLOBAL */
+/* ACTIVE PANEL */
 
 let selectedWall=null;
 
@@ -178,8 +151,6 @@ const colors=[
 "orange","purple","cyan"
 ];
 
-const palette=document.getElementById("palette");
-
 colors.forEach(c=>{
 
 let div=document.createElement("div");
@@ -190,13 +161,8 @@ div.style.background=c;
 
 div.onclick=()=>{
 
-if(selectedWall){
-
+if(selectedWall)
 selectedWall.style.background=c;
-
-colorPicker.value=c;
-
-}
 
 };
 
@@ -205,7 +171,7 @@ palette.appendChild(div);
 });
 
 
-/* CREATE WALL */
+/* ADD NEW PANEL */
 
 function addWall(){
 
@@ -213,9 +179,9 @@ let wall=document.createElement("div");
 
 wall.className="wall";
 
-wall.style.background=colorPicker.value;
+wall.style.background=picker.value;
 
-wall.style.top="45%";
+wall.style.top="40%";
 wall.style.left="40%";
 
 
@@ -228,14 +194,18 @@ del.className="deleteBtn";
 del.innerHTML="×";
 
 del.onclick=e=>{
-
 e.stopPropagation();
-
 wall.remove();
-
 };
 
 wall.appendChild(del);
+
+
+/* SELECT PANEL WHEN CLICKED */
+
+wall.addEventListener("pointerdown",()=>{
+selectedWall=wall;
+});
 
 
 document.body.appendChild(wall);
@@ -247,47 +217,39 @@ selectedWall=wall;
 }
 
 
-/* AUTO CREATE FIRST PANEL */
+/* RGB PICKER */
 
-window.onload=addWall;
-
-
-/* COLOR PICKER */
-
-colorPicker.oninput=()=>{
+picker.oninput=()=>{
 
 if(selectedWall)
-
-selectedWall.style.background=colorPicker.value;
+selectedWall.style.background=picker.value;
 
 };
 
 
-/* OPACITY */
+/* OPACITY CONTROL */
 
-opacitySlider.oninput=()=>{
+opacity.oninput=()=>{
 
 if(selectedWall)
-
-selectedWall.style.opacity=opacitySlider.value;
+selectedWall.style.opacity=opacity.value;
 
 };
 
 
-/* TEXTURE */
+/* TEXTURE APPLY */
 
 function applyTexture(){
 
-let file=textureInput.files[0];
+let file=texture.files[0];
 
-if(!file||!selectedWall) return;
+if(!file || !selectedWall) return;
 
 let reader=new FileReader();
 
 reader.onload=e=>{
 
-selectedWall.style.background=
-
+selectedWall.style.background =
 `url(${e.target.result}) center/cover`;
 
 };
@@ -297,21 +259,97 @@ reader.readAsDataURL(file);
 }
 
 
-/* GESTURES ENGINE */
+/* ENABLE PANEL GESTURES */
 
 function enableGestures(el){
 
 let posX=0,posY=0;
-let scale=1,rotation=0;
+let scale=1;
+let rotation=0;
 
 let startX,startY;
-
 let dragging=false;
 
+let startDist=0,startAngle=0;
 
-/* DRAG */
 
-el.addEventListener("pointerdown",e=>{
+/* UPDATE TRANSFORM */
+
+function update(){
+
+el.style.transform=
+`translate(${posX}px,${posY}px)
+scale(${scale})
+rotate(${rotation}rad)`;
+
+}
+
+
+/* TOUCH SUPPORT */
+
+el.addEventListener("touchstart",e=>{
+
+selectedWall=el;
+
+if(e.touches.length===1){
+
+dragging=true;
+
+startX=e.touches[0].clientX-posX;
+startY=e.touches[0].clientY-posY;
+
+}
+
+if(e.touches.length===2){
+
+startDist=getDistance(e.touches);
+startAngle=getAngle(e.touches);
+
+}
+
+},{passive:false});
+
+
+el.addEventListener("touchmove",e=>{
+
+e.preventDefault();
+
+if(e.touches.length===1 && dragging){
+
+posX=e.touches[0].clientX-startX;
+posY=e.touches[0].clientY-startY;
+
+update();
+
+}
+
+if(e.touches.length===2){
+
+let newDist=getDistance(e.touches);
+
+scale*=newDist/startDist;
+
+startDist=newDist;
+
+let newAngle=getAngle(e.touches);
+
+rotation+=newAngle-startAngle;
+
+startAngle=newAngle;
+
+update();
+
+}
+
+},{passive:false});
+
+
+el.addEventListener("touchend",()=>dragging=false);
+
+
+/* MOUSE SUPPORT */
+
+el.addEventListener("mousedown",e=>{
 
 selectedWall=el;
 
@@ -323,7 +361,7 @@ startY=e.clientY-posY;
 });
 
 
-window.addEventListener("pointermove",e=>{
+window.addEventListener("mousemove",e=>{
 
 if(!dragging) return;
 
@@ -335,10 +373,10 @@ update();
 });
 
 
-window.addEventListener("pointerup",()=>dragging=false);
+window.addEventListener("mouseup",()=>dragging=false);
 
 
-/* ZOOM */
+/* WHEEL ZOOM */
 
 window.addEventListener("wheel",e=>{
 
@@ -346,66 +384,77 @@ if(selectedWall!==el) return;
 
 scale+=e.deltaY*-0.001;
 
+scale=Math.max(0.3,Math.min(4,scale));
+
 update();
 
 });
 
-
-/* ROTATE (RIGHT CLICK DRAG) */
-
-el.addEventListener("contextmenu",e=>e.preventDefault());
-
-el.addEventListener("mousedown",e=>{
-
-if(e.button!==2) return;
-
-selectedWall=el;
-
-let start=e.clientX;
-
-function rotateMove(ev){
-
-rotation+=(ev.clientX-start)*0.01;
-
-start=ev.clientX;
-
-update();
-
 }
 
-function stop(){
 
-window.removeEventListener("mousemove",rotateMove);
+/* DISTANCE */
 
-window.removeEventListener("mouseup",stop);
+function getDistance(t){
 
-}
-
-window.addEventListener("mousemove",rotateMove);
-
-window.addEventListener("mouseup",stop);
-
-});
-
-
-function update(){
-
-el.style.transform=
-
-`translate(${posX}px,${posY}px)
-scale(${scale})
-rotate(${rotation}rad)`;
-
-}
+return Math.hypot(
+t[0].clientX-t[1].clientX,
+t[0].clientY-t[1].clientY
+);
 
 }
 
 
-/* CAPTURE ENGINE */
+/* ANGLE */
+
+function getAngle(t){
+
+return Math.atan2(
+t[1].clientY-t[0].clientY,
+t[1].clientX-t[0].clientX
+);
+
+}
+
+
+/* CAPTURE ALL PANELS */
 
 function capture(){
 
-html2canvas(document.body).then(canvas=>{
+const canvas=document.createElement("canvas");
+
+canvas.width=camera.videoWidth;
+canvas.height=camera.videoHeight;
+
+const ctx=canvas.getContext("2d");
+
+/* draw camera frame */
+
+ctx.drawImage(camera,0,0);
+
+
+/* draw every panel */
+
+document.querySelectorAll(".wall").forEach(wall=>{
+
+const rect=wall.getBoundingClientRect();
+
+const scaleX=canvas.width/window.innerWidth;
+const scaleY=canvas.height/window.innerHeight;
+
+ctx.globalAlpha=parseFloat(wall.style.opacity||1);
+
+ctx.fillStyle=getComputedStyle(wall).backgroundColor;
+
+ctx.fillRect(
+rect.left*scaleX,
+rect.top*scaleY,
+rect.width*scaleX,
+rect.height*scaleY
+);
+
+});
+
 
 let link=document.createElement("a");
 
@@ -414,8 +463,6 @@ link.download="wall_capture.png";
 link.href=canvas.toDataURL();
 
 link.click();
-
-});
 
 }
 
