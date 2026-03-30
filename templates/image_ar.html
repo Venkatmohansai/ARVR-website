@@ -82,7 +82,7 @@ cursor:pointer;
 <script>
 
 /* =============================
-   STOP BROWSER ZOOM
+   PREVENT PAGE ZOOM
 ============================= */
 
 document.addEventListener("wheel", e=>{
@@ -91,16 +91,31 @@ e.preventDefault();
 
 
 /* =============================
-   START CAMERA
+   START BACK CAMERA (MOBILE)
+   FALLBACK TO WEBCAM (LAPTOP)
 ============================= */
 
 const camera = document.getElementById("camera");
 
 navigator.mediaDevices.getUserMedia({
-video:true
+
+video:{
+facingMode:{ ideal:"environment" },
+width:{ ideal:1920 },
+height:{ ideal:1080 }
+}
+
 })
 .then(stream=>{
 camera.srcObject = stream;
+})
+.catch(()=>{
+
+navigator.mediaDevices.getUserMedia({ video:true })
+.then(stream=>{
+camera.srcObject = stream;
+});
+
 });
 
 
@@ -135,7 +150,7 @@ sticker.style.transform =
 
 
 /* =============================
-   MOUSE DRAG
+   MOUSE DRAG (LAPTOP)
 ============================= */
 
 sticker.addEventListener("mousedown", e=>{
@@ -189,17 +204,8 @@ updateTransform();
 
 window.addEventListener("keydown", e=>{
 
-if(e.key === "ArrowLeft"){
-
-rotation -= 0.1;
-
-}
-
-if(e.key === "ArrowRight"){
-
-rotation += 0.1;
-
-}
+if(e.key === "ArrowLeft") rotation -= 0.1;
+if(e.key === "ArrowRight") rotation += 0.1;
 
 updateTransform();
 
@@ -254,13 +260,11 @@ if(e.touches.length === 2){
 let newDist = getDistance(e.touches);
 
 scale *= newDist / startDist;
-
 startDist = newDist;
 
 let newAngle = getAngle(e.touches);
 
 rotation += newAngle - startAngle;
-
 startAngle = newAngle;
 
 updateTransform();
@@ -341,7 +345,6 @@ canvas.height
 const img = new Image();
 
 img.crossOrigin = "anonymous";
-
 img.src = sticker.src;
 
 img.onload = ()=>{
@@ -354,7 +357,6 @@ canvas.height/2 + posY
 );
 
 ctx.rotate(rotation);
-
 ctx.scale(scale, scale);
 
 ctx.drawImage(
@@ -372,9 +374,7 @@ ctx.restore();
 const link = document.createElement("a");
 
 link.download = "sticker_capture.png";
-
 link.href = canvas.toDataURL("image/png");
-
 link.click();
 
 };
