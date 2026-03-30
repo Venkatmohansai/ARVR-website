@@ -3,383 +3,314 @@
 <head>
 
 <meta name="viewport"
-content="width=device-width, initial-scale=1.0, user-scalable=no">
+content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 
-<title>Sticker AR Viewer</title>
+<title>AR Viewer</title>
 
 <style>
 
-html, body{
+html,body{
 margin:0;
 overflow:hidden;
 background:black;
 touch-action:none;
 }
 
-/* CAMERA FEED */
+/* CAMERA */
 
-#camera{
+video{
 position:fixed;
 top:0;
 left:0;
-width:100%;
-height:100%;
+width:100vw;
+height:100vh;
 object-fit:cover;
-z-index:1;
-pointer-events:none;
 }
 
-/* STICKER IMAGE */
+/* AR PANEL */
 
-#sticker{
-position:absolute;
-top:40%;
-left:40%;
-width:220px;
-z-index:5;
-cursor:grab;
-touch-action:none;
-}
+#panel{
 
-/* BUTTON BAR */
-
-#controls{
 position:fixed;
-bottom:30px;
-width:100%;
-text-align:center;
-z-index:20;
+
+top:50%;
+left:50%;
+
+width:320px;
+
+transform:translate(-50%,-50%);
+
+border-radius:22px;
+
+box-shadow:
+0 60px 200px rgba(0,0,0,.9);
+
+touch-action:none;
+
 }
 
-button{
-padding:12px 24px;
-margin:6px;
-border:none;
-border-radius:8px;
-background:#007bff;
+/* IMAGE */
+
+#panel img{
+
+width:100%;
+border-radius:22px;
+
+}
+
+/* BUTTON */
+
+#captureBtn{
+
+position:fixed;
+
+bottom:30px;
+
+left:50%;
+
+transform:translateX(-50%);
+
+padding:14px 40px;
+
+border-radius:40px;
+
+background:#00bcd4;
+
 color:white;
-font-size:16px;
+
+border:none;
+
+font-weight:bold;
+
 cursor:pointer;
+
 }
 
 </style>
-
 </head>
 
 <body>
 
-<video id="camera" autoplay playsinline></video>
+<video id="cam" autoplay playsinline muted></video>
 
-<img id="sticker" src="{{ project.file_url }}">
-
-<div id="controls">
-
-<button onclick="capture()">📷 Capture</button>
-<button onclick="resetSticker()">🔄 Reset</button>
-
+<div id="panel">
+<img id="arImage"
+src="{{ project.file_url }}"
+crossorigin="anonymous">
 </div>
+
+<button id="captureBtn">📸 Capture</button>
+
 
 <script>
 
-/* =============================
-   PREVENT PAGE ZOOM
-============================= */
+/* START CAMERA */
 
-document.addEventListener("wheel", e=>{
-e.preventDefault();
-},{ passive:false });
-
-
-/* =============================
-   START BACK CAMERA (MOBILE)
-   FALLBACK TO WEBCAM (LAPTOP)
-============================= */
-
-const camera = document.getElementById("camera");
+const cam=document.getElementById("cam");
 
 navigator.mediaDevices.getUserMedia({
 
-video:{
-facingMode:{ ideal:"environment" },
-width:{ ideal:1920 },
-height:{ ideal:1080 }
-}
+video:{ facingMode:"environment" }
 
-})
-.then(stream=>{
-camera.srcObject = stream;
-})
-.catch(()=>{
+}).then(stream=>{
 
-navigator.mediaDevices.getUserMedia({ video:true })
-.then(stream=>{
-camera.srcObject = stream;
-});
+cam.srcObject=stream;
 
 });
 
 
-/* =============================
-   STICKER VARIABLES
-============================= */
+/* TRANSFORM VARIABLES */
 
-const sticker = document.getElementById("sticker");
+const panel=document.getElementById("panel");
 
-let posX = 0;
-let posY = 0;
-let scale = 1;
-let rotation = 0;
+let x=0,y=0;
+let scale=1;
+let rotation=0;
 
-let dragging = false;
-let startX = 0;
-let startY = 0;
+let startX,startY,startDist,startAngle;
 
 
-/* =============================
-   UPDATE TRANSFORM
-============================= */
+/* UPDATE TRANSFORM */
 
-function updateTransform(){
+function update(){
 
-sticker.style.transform =
-`translate(${posX}px, ${posY}px)
- scale(${scale})
- rotate(${rotation}rad)`;
+panel.style.transform=`
+translate(calc(-50% + ${x}px),
+calc(-50% + ${y}px))
+scale(${scale})
+rotate(${rotation}deg)
+`;
 
 }
 
 
-/* =============================
-   MOUSE DRAG (LAPTOP)
-============================= */
+/* DRAG */
 
-sticker.addEventListener("mousedown", e=>{
+panel.onmousedown=e=>{
 
-dragging = true;
+startX=e.clientX-x;
+startY=e.clientY-y;
 
-startX = e.clientX - posX;
-startY = e.clientY - posY;
+document.onmousemove=e=>{
 
-});
+x=e.clientX-startX;
+y=e.clientY-startY;
 
+update();
 
-window.addEventListener("mousemove", e=>{
+};
 
-if(!dragging) return;
+document.onmouseup=()=>document.onmousemove=null;
 
-posX = e.clientX - startX;
-posY = e.clientY - startY;
-
-updateTransform();
-
-});
+};
 
 
-window.addEventListener("mouseup", ()=>{
+/* ZOOM */
 
-dragging = false;
-
-});
-
-
-/* =============================
-   MOUSE WHEEL ZOOM
-============================= */
-
-window.addEventListener("wheel", e=>{
-
-scale += e.deltaY * -0.001;
-
-if(scale < 0.2) scale = 0.2;
-if(scale > 5) scale = 5;
-
-updateTransform();
-
-},{ passive:false });
-
-
-/* =============================
-   KEYBOARD ROTATION
-============================= */
-
-window.addEventListener("keydown", e=>{
-
-if(e.key === "ArrowLeft") rotation -= 0.1;
-if(e.key === "ArrowRight") rotation += 0.1;
-
-updateTransform();
-
-});
-
-
-/* =============================
-   MOBILE TOUCH SUPPORT
-============================= */
-
-let startDist = 0;
-let startAngle = 0;
-
-sticker.addEventListener("touchstart", e=>{
+panel.onwheel=e=>{
 
 e.preventDefault();
 
-if(e.touches.length === 1){
+scale+=e.deltaY*-0.0015;
 
-dragging = true;
+scale=Math.max(.3,Math.min(scale,4));
 
-startX = e.touches[0].clientX - posX;
-startY = e.touches[0].clientY - posY;
+update();
+
+};
+
+
+/* TOUCH START */
+
+panel.addEventListener("touchstart",e=>{
+
+if(e.touches.length===1){
+
+startX=e.touches[0].clientX-x;
+startY=e.touches[0].clientY-y;
 
 }
 
-if(e.touches.length === 2){
+if(e.touches.length===2){
 
-startDist = getDistance(e.touches);
-startAngle = getAngle(e.touches);
+startDist=getDistance(e);
+startAngle=getAngle(e);
 
 }
 
-},{ passive:false });
+},{passive:false});
 
 
-sticker.addEventListener("touchmove", e=>{
+/* TOUCH MOVE */
+
+panel.addEventListener("touchmove",e=>{
 
 e.preventDefault();
 
-if(e.touches.length === 1 && dragging){
+if(e.touches.length===1){
 
-posX = e.touches[0].clientX - startX;
-posY = e.touches[0].clientY - startY;
-
-updateTransform();
+x=e.touches[0].clientX-startX;
+y=e.touches[0].clientY-startY;
 
 }
 
-if(e.touches.length === 2){
+if(e.touches.length===2){
 
-let newDist = getDistance(e.touches);
+let newDist=getDistance(e);
 
-scale *= newDist / startDist;
-startDist = newDist;
+scale*=newDist/startDist;
 
-let newAngle = getAngle(e.touches);
+startDist=newDist;
 
-rotation += newAngle - startAngle;
-startAngle = newAngle;
+let newAngle=getAngle(e);
 
-updateTransform();
+rotation+=newAngle-startAngle;
+
+startAngle=newAngle;
 
 }
 
-},{ passive:false });
+update();
+
+},{passive:false});
 
 
-sticker.addEventListener("touchend", ()=>{
+function getDistance(e){
 
-dragging = false;
+let dx=e.touches[0].clientX-e.touches[1].clientX;
+let dy=e.touches[0].clientY-e.touches[1].clientY;
 
-});
-
-
-function getDistance(t){
-
-let dx = t[0].clientX - t[1].clientX;
-let dy = t[0].clientY - t[1].clientY;
-
-return Math.sqrt(dx*dx + dy*dy);
+return Math.sqrt(dx*dx+dy*dy);
 
 }
 
 
-function getAngle(t){
+function getAngle(e){
 
-return Math.atan2(
-t[1].clientY - t[0].clientY,
-t[1].clientX - t[0].clientX
-);
+let dx=e.touches[1].clientX-e.touches[0].clientX;
+let dy=e.touches[1].clientY-e.touches[0].clientY;
 
-}
-
-
-/* =============================
-   RESET BUTTON
-============================= */
-
-function resetSticker(){
-
-posX = 0;
-posY = 0;
-scale = 1;
-rotation = 0;
-
-updateTransform();
+return Math.atan2(dy,dx)*180/Math.PI;
 
 }
 
 
-/* =============================
-   CAPTURE SCREENSHOT
-============================= */
+/* REAL CAPTURE ENGINE */
 
-function capture(){
+document.getElementById("captureBtn").onclick=async function(){
 
-const canvas = document.createElement("canvas");
+const canvas=document.createElement("canvas");
 
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+canvas.width=window.innerWidth;
+canvas.height=window.innerHeight;
 
-const ctx = canvas.getContext("2d");
+const ctx=canvas.getContext("2d");
 
-/* draw camera */
 
-ctx.drawImage(
-camera,
-0,
-0,
-canvas.width,
-canvas.height
-);
+/* DRAW CAMERA FRAME */
 
-/* draw sticker */
+ctx.drawImage(cam,0,0,canvas.width,canvas.height);
 
-const img = new Image();
 
-img.crossOrigin = "anonymous";
-img.src = sticker.src;
+/* DRAW AR IMAGE */
 
-img.onload = ()=>{
+const img=document.getElementById("arImage");
+
+const rect=panel.getBoundingClientRect();
 
 ctx.save();
 
 ctx.translate(
-canvas.width/2 + posX,
-canvas.height/2 + posY
+rect.left + rect.width/2,
+rect.top + rect.height/2
 );
 
-ctx.rotate(rotation);
-ctx.scale(scale, scale);
+ctx.rotate(rotation*Math.PI/180);
+
+ctx.scale(scale,scale);
 
 ctx.drawImage(
 img,
--110,
--110,
-220,
-220
+-rect.width/2,
+-rect.height/2,
+rect.width,
+rect.height
 );
 
 ctx.restore();
 
-/* download */
 
-const link = document.createElement("a");
+/* DOWNLOAD */
 
-link.download = "sticker_capture.png";
-link.href = canvas.toDataURL("image/png");
+const link=document.createElement("a");
+
+link.download="AR_capture.png";
+
+link.href=canvas.toDataURL("image/png");
+
 link.click();
 
 };
-
-}
 
 </script>
 
