@@ -1,34 +1,97 @@
 <!DOCTYPE html>
 <html>
-
 <head>
 
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport"
+content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 
 <title>Wall AR</title>
 
-<script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.158.0/examples/js/webxr/ARButton.js"></script>
-
 <style>
 
-body{
+html,body{
 margin:0;
 overflow:hidden;
-font-family:Arial;
 background:black;
+font-family:Arial;
+touch-action:none;
 }
 
-#info{
-position:absolute;
-top:20px;
+/* CAMERA */
+
+#camera{
+position:fixed;
+top:0;
+left:0;
 width:100%;
-text-align:center;
+height:100%;
+object-fit:cover;
+z-index:1;
+}
+
+/* WALL OVERLAY */
+
+.wallBox{
+
+position:absolute;
+top:45%;
+left:35%;
+
+width:260px;
+height:180px;
+
+background:red;
+
+border-radius:18px;
+
+touch-action:none;
+
+z-index:5;
+
+}
+
+/* FLOAT PANEL */
+
+#panel{
+
+position:fixed;
+bottom:20px;
+left:50%;
+transform:translateX(-50%);
+
+background:rgba(60,60,60,.9);
+
+padding:18px;
+
+border-radius:26px;
+
+width:90%;
+max-width:420px;
+
 color:white;
-font-size:18px;
+
 z-index:10;
-background:rgba(0,0,0,.5);
-padding:8px;
+
+}
+
+/* BUTTON */
+
+button{
+
+background:#00c2d1;
+
+border:none;
+
+padding:10px 16px;
+
+border-radius:12px;
+
+margin:4px;
+
+color:white;
+
+cursor:pointer;
+
 }
 
 </style>
@@ -37,191 +100,315 @@ padding:8px;
 
 <body>
 
-<div id="info">
-Move phone slowly → Tap screen to place image
+<video id="camera" autoplay playsinline></video>
+
+<div id="wall" class="wallBox"></div>
+
+
+<div id="panel">
+
+<div style="display:flex;justify-content:space-between">
+
+<div>🎨 Wall AR RGB</div>
+
+<input type="color" id="colorPicker" value="#ff0000">
+
 </div>
+
+<br>
+
+<button onclick="applyColor()">Add</button>
+
+<br>
+
+<input type="file" id="textureInput">
+
+<br>
+
+<button onclick="applyTexture()">Texture</button>
+
+<button onclick="deleteWall()">Delete</button>
+
+<button onclick="capture()">📸 Capture</button>
+
+</div>
+
 
 <script>
 
-let camera, scene, renderer;
-let controller;
-let reticle;
+/* OPEN BACK CAMERA */
 
-let hitTestSource = null;
-let hitTestSourceRequested = false;
+navigator.mediaDevices.getUserMedia({
 
-init();
+video:{ facingMode:{ ideal:"environment"} }
 
-function init(){
-
-scene = new THREE.Scene();
-
-camera = new THREE.PerspectiveCamera(
-70,
-window.innerWidth / window.innerHeight,
-0.01,
-20
-);
-
-renderer = new THREE.WebGLRenderer({
-antialias:true,
-alpha:true
-});
-
-renderer.setPixelRatio(window.devicePixelRatio);
-renderer.setSize(window.innerWidth, window.innerHeight);
-
-renderer.xr.enabled = true;
-
-document.body.appendChild(renderer.domElement);
-
-document.body.appendChild(
-ARButton.createButton(renderer,{
-requiredFeatures:["hit-test"]
 })
+.then(stream=>{
+
+camera.srcObject=stream;
+
+});
+
+
+/* SELECT WALL */
+
+const wall=document.getElementById("wall");
+
+
+/* TRANSFORM VALUES */
+
+let posX=0;
+let posY=0;
+
+let scale=1;
+
+let rotation=0;
+
+let dragging=false;
+
+let startX,startY;
+
+let startDist=0;
+
+let startAngle=0;
+
+
+/* UPDATE POSITION */
+
+function updateTransform(){
+
+wall.style.transform=
+
+`translate(${posX}px,${posY}px)
+ scale(${scale})
+ rotate(${rotation}rad)`;
+
+}
+
+
+/* TOUCH START */
+
+wall.addEventListener("touchstart",e=>{
+
+if(e.touches.length===1){
+
+dragging=true;
+
+startX=e.touches[0].clientX-posX;
+startY=e.touches[0].clientY-posY;
+
+}
+
+if(e.touches.length===2){
+
+dragging=false;
+
+startDist=getDistance(e.touches);
+
+startAngle=getAngle(e.touches);
+
+}
+
+},{passive:false});
+
+
+/* TOUCH MOVE */
+
+wall.addEventListener("touchmove",e=>{
+
+e.preventDefault();
+
+if(e.touches.length===1 && dragging){
+
+posX=e.touches[0].clientX-startX;
+
+posY=e.touches[0].clientY-startY;
+
+updateTransform();
+
+}
+
+if(e.touches.length===2){
+
+let newDist=getDistance(e.touches);
+
+scale*=newDist/startDist;
+
+startDist=newDist;
+
+let newAngle=getAngle(e.touches);
+
+rotation+=newAngle-startAngle;
+
+startAngle=newAngle;
+
+updateTransform();
+
+}
+
+},{passive:false});
+
+
+wall.addEventListener("touchend",()=>{
+
+dragging=false;
+
+});
+
+
+/* DISTANCE FUNCTION */
+
+function getDistance(t){
+
+return Math.hypot(
+
+t[0].clientX-t[1].clientX,
+
+t[0].clientY-t[1].clientY
+
 );
 
-/* LIGHT */
+}
 
-const light = new THREE.HemisphereLight(0xffffff,0xbbbbff,1);
-scene.add(light);
 
-/* RETICLE */
+/* ROTATION FUNCTION */
 
-const geometry = new THREE.RingGeometry(0.15,0.2,32).rotateX(-Math.PI/2);
+function getAngle(t){
 
-const material = new THREE.MeshBasicMaterial({
-color:0xffffff
-});
+return Math.atan2(
 
-reticle = new THREE.Mesh(geometry,material);
+t[1].clientY-t[0].clientY,
 
-reticle.matrixAutoUpdate=false;
-reticle.visible=false;
+t[1].clientX-t[0].clientX
 
-scene.add(reticle);
-
-/* CONTROLLER */
-
-controller = renderer.xr.getController(0);
-controller.addEventListener("select", placeImage);
-
-scene.add(controller);
-
-renderer.setAnimationLoop(render);
-
-window.addEventListener("resize", onWindowResize);
+);
 
 }
 
-/* PLACE IMAGE */
 
-function placeImage(){
+/* DESKTOP DRAG SUPPORT */
 
-if(!reticle.visible) return;
+wall.addEventListener("mousedown",e=>{
 
-const loader = new THREE.TextureLoader();
+dragging=true;
 
-loader.crossOrigin = "anonymous";
+startX=e.clientX-posX;
 
-loader.load("{{ project.file_url }}",function(texture){
-
-const geometry = new THREE.PlaneGeometry(1,1);
-
-const material = new THREE.MeshBasicMaterial({
-map:texture,
-transparent:true,
-side:THREE.DoubleSide
-});
-
-const plane = new THREE.Mesh(geometry,material);
-
-plane.position.setFromMatrixPosition(reticle.matrix);
-
-plane.quaternion.setFromRotationMatrix(reticle.matrix);
-
-scene.add(plane);
+startY=e.clientY-posY;
 
 });
 
-}
 
-/* RENDER LOOP */
+window.addEventListener("mousemove",e=>{
 
-function render(timestamp,frame){
+if(!dragging) return;
 
-if(frame){
+posX=e.clientX-startX;
 
-const referenceSpace = renderer.xr.getReferenceSpace();
+posY=e.clientY-startY;
 
-const session = renderer.xr.getSession();
-
-/* REQUEST HIT TEST ONCE */
-
-if(!hitTestSourceRequested){
-
-session.requestReferenceSpace("viewer").then(function(space){
-
-session.requestHitTestSource({space:space}).then(function(source){
-
-hitTestSource = source;
+updateTransform();
 
 });
 
-});
 
-session.addEventListener("end",function(){
+window.addEventListener("mouseup",()=>dragging=false);
 
-hitTestSourceRequested=false;
-hitTestSource=null;
 
-});
+/* MOUSE SCROLL ZOOM */
 
-hitTestSourceRequested=true;
+window.addEventListener("wheel",e=>{
 
-}
+scale+=e.deltaY*-0.001;
 
-/* HIT TEST */
+scale=Math.max(.3,Math.min(5,scale));
 
-if(hitTestSource){
+updateTransform();
 
-const hitTestResults = frame.getHitTestResults(hitTestSource);
+},{passive:false});
 
-if(hitTestResults.length){
 
-const hit = hitTestResults[0];
+/* APPLY COLOR */
 
-const pose = hit.getPose(referenceSpace);
+function applyColor(){
 
-reticle.visible=true;
-
-reticle.matrix.fromArray(pose.transform.matrix);
-
-}else{
-
-reticle.visible=false;
+wall.style.background=colorPicker.value;
 
 }
 
-}
+
+/* APPLY TEXTURE */
+
+function applyTexture(){
+
+const file=textureInput.files[0];
+
+if(!file) return;
+
+const reader=new FileReader();
+
+reader.onload=e=>{
+
+wall.style.background=
+
+`url(${e.target.result}) center/cover`;
+
+};
+
+reader.readAsDataURL(file);
 
 }
 
-renderer.render(scene,camera);
+
+/* DELETE WALL */
+
+function deleteWall(){
+
+wall.style.background="transparent";
 
 }
 
-/* RESIZE */
 
-function onWindowResize(){
+/* SCREENSHOT */
 
-camera.aspect = window.innerWidth/window.innerHeight;
+function capture(){
 
-camera.updateProjectionMatrix();
+let canvas=document.createElement("canvas");
 
-renderer.setSize(window.innerWidth,window.innerHeight);
+canvas.width=window.innerWidth;
+
+canvas.height=window.innerHeight;
+
+let ctx=canvas.getContext("2d");
+
+ctx.drawImage(camera,0,0);
+
+ctx.fillStyle=wall.style.background;
+
+ctx.fillRect(300,300,260,180);
+
+let link=document.createElement("a");
+
+link.download="wall_ar_capture.png";
+
+link.href=canvas.toDataURL();
+
+link.click();
 
 }
+
+
+/* STOP CAMERA PINCH ZOOM */
+
+document.addEventListener("touchmove",function(e){
+
+if(e.scale!==1){
+
+e.preventDefault();
+
+}
+
+},{passive:false});
 
 </script>
 
