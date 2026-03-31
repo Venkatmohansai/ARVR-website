@@ -27,9 +27,7 @@ app.secret_key = os.environ.get("SECRET_KEY", "fallback-secret-key")
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
-RUNNING_LOCALLY = os.name == "nt"
-
-if DATABASE_URL and not RUNNING_LOCALLY:
+if DATABASE_URL:
 
     if DATABASE_URL.startswith("postgres://"):
         DATABASE_URL = DATABASE_URL.replace(
@@ -42,7 +40,6 @@ if DATABASE_URL and not RUNNING_LOCALLY:
 
 else:
     DATABASE_URL = "sqlite:///local.db"
-
 
 app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
