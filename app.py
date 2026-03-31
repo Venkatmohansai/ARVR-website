@@ -4,36 +4,50 @@ from flask import Flask, render_template, request, redirect, session, abort
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
-
 import cloudinary
 import cloudinary.uploader
 
-
 # -----------------------------
-# LOAD ENVIRONMENT VARIABLES
+# LOAD ENV VARIABLES
 # -----------------------------
 
 load_dotenv()
 
 app = Flask(__name__, template_folder="templates")
 
-
 # -----------------------------
 # SECRET KEY
 # -----------------------------
 
-app.secret_key = "dev-secret-key"
-
+app.secret_key = os.environ.get("SECRET_KEY", "fallback-secret-key")
 
 # -----------------------------
-# DATABASE CONFIG (LOCAL SQLITE ONLY)
+# DATABASE CONFIG
 # -----------------------------
 
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///local.db"
+DATABASE_URL = os.environ.get("DATABASE_URL")
+
+RUNNING_LOCALLY = os.name == "nt"
+
+if DATABASE_URL and not RUNNING_LOCALLY:
+
+    if DATABASE_URL.startswith("postgres://"):
+        DATABASE_URL = DATABASE_URL.replace(
+            "postgres://",
+            "postgresql://"
+        )
+
+    if "sslmode=" not in DATABASE_URL:
+        DATABASE_URL += "?sslmode=require"
+
+else:
+    DATABASE_URL = "sqlite:///local.db"
+
+
+app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
-
 
 # -----------------------------
 # CLOUDINARY CONFIG
@@ -46,16 +60,25 @@ cloudinary.config(
     secure=True
 )
 
+# -----------------------------
+# ADMIN PIN
+# -----------------------------
+
+ADMIN_PIN = os.environ.get("ADMIN_PIN", "1234")
 
 # -----------------------------
-# ALLOWED FILE TYPES
+# UPLOAD SETTINGS
 # -----------------------------
+
+UPLOAD_FOLDER = "uploads"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "glb"}
 
 
 def allowed_file(filename):
-    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+    return "." in filename and \
+           filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
 # -----------------------------
@@ -69,6 +92,8 @@ class Project(db.Model):
     name = db.Column(db.String(120), nullable=False)
 
     file_url = db.Column(db.String(500), nullable=False)
+
+    public_id = db.Column(db.String(300), nullable=False)
 
     type = db.Column(db.String(50), nullable=False)
 
@@ -151,9 +176,7 @@ def verify_pin():
 
     next_page = request.form.get("next_page") or "/"
 
-    correct_pin = "1234"
-
-    if pin == correct_pin:
+    if pin == ADMIN_PIN:
 
         session["create_auth"] = True
         session.permanent = True
@@ -191,9 +214,16 @@ def save():
 
         filename = secure_filename(file.filename)
 
+        public_id = str(uuid.uuid4()) + "_" + filename
+
+        # SAVE LOCALLY
+        local_path = os.path.join(UPLOAD_FOLDER, filename)
+        file.save(local_path)
+
+        # UPLOAD TO CLOUDINARY
         upload_result = cloudinary.uploader.upload(
-            file,
-            public_id=str(uuid.uuid4()) + "_" + filename,
+            local_path,
+            public_id=public_id,
             resource_type="auto"
         )
 
@@ -202,6 +232,7 @@ def save():
         project = Project(
             name=name,
             file_url=file_url,
+            public_id=public_id,
             type=ptype
         )
 
@@ -231,12 +262,15 @@ def delete_project(id):
 
     try:
 
+        cloudinary.uploader.destroy(project.public_id)
+
         db.session.delete(project)
         db.session.commit()
 
     except Exception as e:
 
         db.session.rollback()
+
         return f"Delete failed: {e}", 500
 
     return redirect("/")
